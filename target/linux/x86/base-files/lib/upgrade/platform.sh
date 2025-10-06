@@ -1,16 +1,24 @@
 RAMFS_COPY_BIN='grub-bios-setup'
 
 platform_check_image() {
-	local diskdev partdev diff
-	[ "$#" -gt 1 ] && return 1
+    local diskdev partdev diff magic
+    [ "$#" -gt 1 ] && return 1
 
-	case "$(get_magic_word "$1")" in
-		eb48|eb63) ;;
-		*)
-			v "Invalid image type"
-			return 1
-		;;
-	esac
+    magic="$(get_magic_word "$1")"
+    case "$magic" in
+        eb48|eb63)
+            ;;
+        *)
+            # Allow UEFI-only GPT images that may have a zeroed MBR boot code
+            # and thus don't start with GRUB's legacy MBR jump (0xeb48/0xeb63).
+            if get_magic_gpt "$1" | grep -q "^EFI PART$"; then
+                v "Detected GPT header (UEFI image); skipping legacy MBR magic check"
+            else
+                v "Invalid image type"
+                return 1
+            fi
+        ;;
+    esac
 
 	export_bootdevice && export_partdevice diskdev 0 || {
 		v "Unable to determine upgrade device"
