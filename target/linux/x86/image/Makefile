@@ -72,11 +72,12 @@ define Build/grub-install
 	$(CP) $(STAGING_DIR_IMAGE)/grub2/boot.img $@.grub2/
 	$(CP) $(STAGING_DIR_IMAGE)/grub2/$(if $(filter $(1),efi),gpt,$(GRUB2_VARIANT))-core.img $@.grub2/core.img
 	echo '(hd0) $@' > $@.grub2/device.map
-	$(STAGING_DIR_HOST)/bin/grub-bios-setup \
-		-m "$@.grub2/device.map" \
-		-d "$@.grub2" \
-		-r "hd0,$(if $(filter $(1),efi),gpt1,msdos1)" \
-		$@
+    $(STAGING_DIR_HOST)/bin/grub-bios-setup \
+            -m "$@.grub2/device.map" \
+            -d "$@.grub2" \
+            -f \
+            -r "hd0,$(if $(filter $(1),efi),gpt2,msdos1)" \
+            $@
 endef
 
 define Build/iso
@@ -110,12 +111,12 @@ define Device/Default
   IMAGE/rootfs.img := append-rootfs | pad-to $(ROOTFS_PARTSIZE)
   IMAGE/rootfs.img.gz := append-rootfs | pad-to $(ROOTFS_PARTSIZE) | gzip
   ARTIFACT/image-efi.iso := grub-config iso | iso efi
-  IMAGE/combined-efi.img := grub-config efi | combined efi | grub-install efi | append-metadata
-  IMAGE/combined-efi.img.gz := grub-config efi | combined efi | grub-install efi | gzip | append-metadata
-  IMAGE/combined-efi.qcow2 := grub-config efi | combined efi | grub-install efi | qemu-image qcow2
-  IMAGE/combined-efi.vdi := grub-config efi | combined efi | grub-install efi | qemu-image vdi
-  IMAGE/combined-efi.vmdk := grub-config efi | combined efi | grub-install efi | qemu-image vmdk
-  IMAGE/combined-efi.vhdx := grub-config efi | combined efi | grub-install efi | qemu-image vhdx -o subformat=dynamic
+  IMAGE/combined-efi.img := grub-config efi | combined efi | append-metadata
+  IMAGE/combined-efi.img.gz := grub-config efi | combined efi | gzip | append-metadata
+  IMAGE/combined-efi.qcow2 := grub-config efi | combined efi | qemu-image qcow2
+  IMAGE/combined-efi.vdi := grub-config efi | combined efi | qemu-image vdi
+  IMAGE/combined-efi.vmdk := grub-config efi | combined efi | qemu-image vmdk
+  IMAGE/combined-efi.vhdx := grub-config efi | combined efi | qemu-image vhdx -o subformat=dynamic
   ifeq ($(CONFIG_TARGET_IMAGES_GZIP),y)
     IMAGES-y := rootfs.img.gz
     IMAGES-$$(CONFIG_GRUB_IMAGES) += combined.img.gz
@@ -156,4 +157,3 @@ endef
 include $(SUBTARGET).mk
 
 $(eval $(call BuildImage))
-
