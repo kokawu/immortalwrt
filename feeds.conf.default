@@ -25,4 +25,3 @@ src-git oaf https://github.com/destan19/OpenAppFilter
 src-git timecontrol https://github.com/sirpdboy/luci-app-timecontrol.git
 
 # tailscale LuCI frontend
-src-git luci_tailscale https://github.com/asvow/luci-app-tailscale.git
