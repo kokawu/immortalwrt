@@ -93,6 +93,10 @@ $(subst &,\&,$(subst $(comma),\$(comma),$(subst ','\'',$(subst \,\\,$(1)))))
 endef
 #'
 
+# Human-readable build date for local identification.
+# Intentionally uses local time; this is informational only.
+BUILD_DATE:=$(shell date +%Y-%m-%d)
+
 VERSION_SED_SCRIPT:=$(SED) 's,%U,$(call sed_escape,$(VERSION_REPO)),g' \
 	-e 's,%V,$(call sed_escape,$(VERSION_NUMBER)),g' \
 	-e 's,%v,\L$(call sed_escape,$(subst $(space),_,$(VERSION_NUMBER))),g' \
@@ -113,4 +117,5 @@ VERSION_SED_SCRIPT:=$(SED) 's,%U,$(call sed_escape,$(VERSION_REPO)),g' \
 	-e 's,%f,$(call sed_escape,$(VERSION_FIRMWARE_URL)),g' \
 	-e 's,%P,$(call sed_escape,$(VERSION_PRODUCT)),g' \
 	-e 's,%h,$(call sed_escape,$(VERSION_HWREV)),g' \
+	-e 's,%K,$(call sed_escape,$(BUILD_DATE)),g' \
 	-e 's,%B,$(call sed_escape,$(SOURCE_DATE_EPOCH)),g'
