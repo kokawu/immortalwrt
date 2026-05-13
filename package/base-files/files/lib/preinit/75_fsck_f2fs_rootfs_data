@@ -1,0 +1,31 @@
+#!/bin/sh
+
+# Run a quick fsck on F2FS rootfs_data before mount_root, and
+# initialize as F2FS on first boot if the partition is blank
+# (no recognizable TYPE and labeled rootfs_data).
+
+preinit_check_f2fs_rootfs_data() {
+	[ -x /sbin/block ] || return 0
+
+	# Find device by label
+	DEV="$(/sbin/block info 2>/dev/null | sed -n 's#\(/dev/[^:]*\):.*LABEL=\"rootfs_data\".*#\1#p' | head -n1)"
+	[ -n "$DEV" ] || return 0
+
+	LINE="$({ /sbin/block info 2>/dev/null | grep -E "^$DEV:"; } || true)"
+
+	# If it's F2FS, try an automatic repair then continue
+	printf "%s" "$LINE" | grep -q 'TYPE="f2fs"' && {
+		[ -x /usr/sbin/fsck.f2fs ] && /usr/sbin/fsck.f2fs -a -f "$DEV" >/dev/null 2>&1 || true
+		return 0
+	}
+
+	# If TYPE is missing (uninitialized), format it as F2FS conservatively
+	printf "%s" "$LINE" | grep -q 'TYPE=' || {
+		[ -x /usr/sbin/mkfs.f2fs ] && /usr/sbin/mkfs.f2fs -f -l rootfs_data \
+			-O extra_attr,inode_checksum,flexible_inline_xattr \
+			-O ^encrypt,^compression "$DEV" >/dev/null 2>&1 || true
+	}
+}
+
+boot_hook_add preinit_main preinit_check_f2fs_rootfs_data
+

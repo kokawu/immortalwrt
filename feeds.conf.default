@@ -5,21 +5,28 @@ src-git routing https://github.com/openwrt/routing.git;master
 src-git telephony https://github.com/openwrt/telephony.git;master
 
 # Third-party feeds: use official repos to avoid conflicts
-src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages;main
-src-git passwall2 https://github.com/xiaorouji/openwrt-passwall2;main
+src-git passwall_packages https://github.com/OpenWrt-Passwall/openwrt-passwall-packages;main
+src-git passwall2 https://github.com/OpenWrt-Passwall/openwrt-passwall2;main
 src-git openclash https://github.com/vernesong/OpenClash
 src-git nikki https://github.com/nikkinikki-org/OpenWrt-nikki
 
 # Argon theme and config (jerrykuku) - 使用特定分支避免子模块问题
 # 已改为本地化到 package/custom/，不再通过 feeds 引入
 
-# LuCI theme kucat (single-package feed)
-src-git kucat https://github.com/sirpdboy/luci-theme-kucat.git
+# LuCI theme kucat
+# NOTE: Do NOT add as a feed: this repo is a single-package layout (Makefile at repo root),
+# which can break `./scripts/feeds update` packageinfo generation.
+# We vendor it into package/custom/ instead.
+# src-git kucat https://github.com/sirpdboy/luci-theme-kucat.git
 # Sirpdboy aggregate feed (disabled to avoid pulling unnecessary packages)
 # src-git sb https://github.com/sirpdboy/sirpdboy-package.git
 
 # OpenAppFilter (application-level filtering)
-src-git oaf https://github.com/destan19/OpenAppFilter
+# NOTE: Disabled. `packages` feed already ships `open-app-filter` (which provides `kmod-oaf`),
+# and enabling this extra feed duplicates `kmod-oaf`/`open-app-filter` and breaks Kconfig
+# generation (e.g. "recursive dependency detected" during `make defconfig`).
+# If you need `luci-app-oaf`, vendor it into `package/custom/` instead of enabling this feed.
+# src-git oaf https://github.com/destan19/OpenAppFilter
 
 # luci-app-timecontrol (single-package feed)
 src-git timecontrol https://github.com/sirpdboy/luci-app-timecontrol.git
