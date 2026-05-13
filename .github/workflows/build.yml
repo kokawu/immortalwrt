@@ -1,0 +1,101 @@
+name: Build firmware
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "build-*"
+      - "kokawu-*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build x86_64 firmware
+    runs-on: ubuntu-24.04
+    timeout-minutes: 720
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo docker image prune -af || true
+          df -h
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ack antlr3 asciidoc autoconf automake autopoint binutils bison \
+            build-essential bzip2 ccache clang cmake cpio curl device-tree-compiler \
+            ecj fastjar flex gawk gettext gcc-multilib g++-multilib git gperf \
+            haveged help2man intltool libelf-dev libglib2.0-dev libgmp3-dev \
+            libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev \
+            libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp nano ninja-build \
+            p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply \
+            python3-docutils python3-pyelftools qemu-utils re2c rsync scons squashfs-tools \
+            subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
+
+      - name: Configure ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-immortalwrt-x86-64
+          max-size: 2G
+
+      - name: Update feeds
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Generate config
+        run: |
+          cp seed.config .config
+          make defconfig
+          ./scripts/diffconfig.sh > build.config
+
+      - name: Download sources
+        run: make download -j"$(nproc)"
+
+      - name: Build firmware
+        run: make -j"$(nproc)" V=s
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p artifacts
+          find bin/targets -type f \( \
+            -name "*.bin" -o \
+            -name "*.img" -o \
+            -name "*.img.gz" -o \
+            -name "*.qcow2" -o \
+            -name "*.qcow2.gz" -o \
+            -name "*.vmdk" -o \
+            -name "*.vmdk.gz" -o \
+            -name "*.efi" -o \
+            -name "*.manifest" -o \
+            -name "sha256sums" \) -print -exec cp -a {} artifacts/ \;
+          cp -a build.config artifacts/
+          ls -lh artifacts
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: immortalwrt-x86-64-${{ github.ref_name }}
+          path: artifacts/*
+          if-no-files-found: error
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
