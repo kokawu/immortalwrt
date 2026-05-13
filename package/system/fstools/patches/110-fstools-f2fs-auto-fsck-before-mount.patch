@@ -1,0 +1,34 @@
+--- a/block.c
++++ b/block.c
+@@ -1741,12 +1741,25 @@
+ 			case FS_F2FS: {
+ 				char cfg[] = "/tmp/f2fs_cfg";
+ 
+-				/* Mount volume and try extroot (using fstab from that vol) */
+-				mkdir_p(cfg, 0755);
+-				if (!mount(data->blk, cfg, "f2fs", MS_NOATIME, NULL)) {
+-					err = mount_extroot(cfg);
+-					umount2(cfg, MNT_DETACH);
+-				}
++				/* Mount volume and try extroot (using fstab from that vol) */
++				mkdir_p(cfg, 0755);
++				int mret = mount(data->blk, cfg, "f2fs", MS_NOATIME, NULL);
++				if (mret) {
++					/* Attempt an automatic repair, then retry once */
++					if (access("/usr/sbin/fsck.f2fs", X_OK) == 0) {
++						char cmd[256];
++						snprintf(cmd, sizeof(cmd),
++								"/usr/sbin/fsck.f2fs -a -f %s > /dev/null 2>&1",
++								data->blk);
++						system(cmd);
++					}
++					mret = mount(data->blk, cfg, "f2fs", MS_NOATIME, NULL);
++				}
++
++				if (!mret) {
++					err = mount_extroot(cfg);
++					umount2(cfg, MNT_DETACH);
++				}
+ 				if (err < 0)
+ 					rmdir("/tmp/overlay");
+ 				rmdir(cfg);
