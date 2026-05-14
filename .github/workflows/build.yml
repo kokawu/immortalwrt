@@ -67,7 +67,21 @@ jobs:
         run: make download -j"$(nproc)"
 
       - name: Build firmware
-        run: make -j"$(nproc)" V=s
+        run: |
+          set -o pipefail
+          make -j"$(nproc)" V=s 2>&1 | tee build.log
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: immortalwrt-build-failure-${{ github.ref_name }}
+          path: |
+            build.log
+            .config
+            build.config
+            logs/
+          if-no-files-found: warn
 
       - name: Prepare artifacts
         run: |
