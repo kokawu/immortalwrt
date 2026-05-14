@@ -1,7 +1,11 @@
 #!/bin/sh
 
 uci -q batch <<-EOF >/dev/null
+	set tailscale.settings.enabled='0'
+	set tailscale.settings.config_path='/etc/tailscale'
+	set tailscale.settings.accept_dns='1'
 	delete ucitrack.@tailscale[-1]
+	commit tailscale
 	commit ucitrack
 EOF
 
