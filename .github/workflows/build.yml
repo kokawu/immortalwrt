@@ -57,6 +57,39 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
+      - name: Patch netdata for protobuf C++14
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          for path in (
+              Path("feeds/packages/admin/netdata/Makefile"),
+              Path("package/feeds/packages/netdata/Makefile"),
+          ):
+              if not path.exists():
+                  continue
+
+              text = path.read_text()
+              needle = "TARGET_CFLAGS := $(filter-out -O%,$(TARGET_CFLAGS)) -O3\n"
+              replacement = (
+                  "TARGET_CFLAGS := $(filter-out -O%,$(TARGET_CFLAGS)) -O3\n"
+                  "TARGET_CXXFLAGS := $(filter-out -std=%,$(TARGET_CXXFLAGS)) -std=c++14\n"
+              )
+              if "TARGET_CXXFLAGS := $(filter-out -std=%,$(TARGET_CXXFLAGS)) -std=c++14" not in text:
+                  text = text.replace(needle, replacement)
+
+              configure_hook = "$(SED) 's/-std=c++11/-std=c++14/g' $(PKG_BUILD_DIR)/configure.ac $(PKG_BUILD_DIR)/configure\n"
+              if configure_hook not in text:
+                  text = text.replace(
+                      "\t$(SED) 's/m4_esyscmd(\\[git describe .*\\])/$(PKG_VERSION)/' $(PKG_BUILD_DIR)/configure.ac\n",
+                      "\t$(SED) 's/m4_esyscmd(\\[git describe .*\\])/$(PKG_VERSION)/' $(PKG_BUILD_DIR)/configure.ac\n"
+                      "\t$(SED) 's/-std=c++11/-std=c++14/g' $(PKG_BUILD_DIR)/configure.ac $(PKG_BUILD_DIR)/configure\n",
+                  )
+
+              path.write_text(text)
+              print(f"patched {path}")
+          PY
+
       - name: Generate config
         run: |
           cp seed.config .config
