@@ -57,38 +57,72 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Patch netdata for protobuf C++14
+      - name: Inject netdata C++14 patch
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          for path in (
-              Path("feeds/packages/admin/netdata/Makefile"),
-              Path("package/feeds/packages/netdata/Makefile"),
-          ):
-              if not path.exists():
-                  continue
-
-              text = path.read_text()
-              needle = "TARGET_CFLAGS := $(filter-out -O%,$(TARGET_CFLAGS)) -O3\n"
-              replacement = (
-                  "TARGET_CFLAGS := $(filter-out -O%,$(TARGET_CFLAGS)) -O3\n"
-                  "TARGET_CXXFLAGS := $(filter-out -std=%,$(TARGET_CXXFLAGS)) -std=c++14\n"
-              )
-              if "TARGET_CXXFLAGS := $(filter-out -std=%,$(TARGET_CXXFLAGS)) -std=c++14" not in text:
-                  text = text.replace(needle, replacement)
-
-              configure_hook = "$(SED) 's/-std=c++11/-std=c++14/g' $(PKG_BUILD_DIR)/configure.ac $(PKG_BUILD_DIR)/configure\n"
-              if configure_hook not in text:
-                  text = text.replace(
-                      "\t$(SED) 's/m4_esyscmd(\\[git describe .*\\])/$(PKG_VERSION)/' $(PKG_BUILD_DIR)/configure.ac\n",
-                      "\t$(SED) 's/m4_esyscmd(\\[git describe .*\\])/$(PKG_VERSION)/' $(PKG_BUILD_DIR)/configure.ac\n"
-                      "\t$(SED) 's/-std=c++11/-std=c++14/g' $(PKG_BUILD_DIR)/configure.ac $(PKG_BUILD_DIR)/configure\n",
-                  )
-
-              path.write_text(text)
-              print(f"patched {path}")
-          PY
+          patch_dir="feeds/packages/admin/netdata/patches"
+          mkdir -p "$patch_dir"
+          rm -f "$patch_dir/005-netdata-use-cxx14-for-protobuf.patch"
+          cat >"$patch_dir/005-netdata-use-cxx14-for-protobuf.patch" <<'EOF'
+          --- a/configure.ac
+          +++ b/configure.ac
+          @@ -815,7 +815,7 @@ if test "${have_libprotobuf}" == "yes" && test "${have_CXX_compiler}" == "yes";
+                   AC_DEFINE([ENABLE_ACLK], [1], [netdata ACLK])
+                   OPTIONAL_ACLK_CFLAGS="-I \$(abs_top_srcdir)/mqtt_websockets/src/include -I \$(abs_top_srcdir)/mqtt_websockets/c-rbuf/include -I \$(abs_top_srcdir)/aclk/aclk-schemas"
+                   OPTIONAL_PROTOBUF_CFLAGS="${PROTOBUF_CFLAGS}"
+          -        CXX11FLAG="-std=c++11"
+          +        CXX11FLAG="-std=c++14"
+                   OPTIONAL_PROTOBUF_LIBS="${PROTOBUF_LIBS}"
+               fi
+           fi
+          @@ -1145,7 +1145,7 @@ fi
+           
+           # Check if C++ toolchain does not support C++11. Fail if ML was explicitly requested.
+           AC_LANG_PUSH([C++])
+          -AX_CHECK_COMPILE_FLAG([-std=c++11], [have_cxx11=yes], [have_cxx11=no])
+          +AX_CHECK_COMPILE_FLAG([-std=c++14], [have_cxx11=yes], [have_cxx11=no])
+           AC_LANG_POP([C++])
+           
+           # PPC64LE needs -std=gnu++11 in order to build dlib. However, the rest of
+          @@ -1158,7 +1158,7 @@ if test "${host_cpu}" = "powerpc64le"; then
+           if test "${enable_ml}" = "yes" -a "${have_cxx11}" = "no"; then
+               AC_MSG_ERROR([You have explicitly requested --enable-ml functionality but it cannot be built without a C++11 toolchain.])
+           else
+          -    CXX11FLAG="$CXX11FLAG -std=c++11"
+          +    CXX11FLAG="$CXX11FLAG -std=c++14"
+           fi
+           
+           # Decide if we should build ML
+          @@ -1359,7 +1359,7 @@ if test "${enable_exporting_pubsub}" != "no" -a "${have_pubsub_protos}" = "yes"
+               enable_exporting_pubsub="yes"
+               AC_DEFINE([ENABLE_EXPORTING_PUBSUB], [1], [Pub/Sub API usability])
+               OPTIONAL_PUBSUB_CFLAGS="${GRPC_CFLAGS} ${PUBSUB_CFLAGS}"
+          -    CXX11FLAG="-std=c++11"
+          +    CXX11FLAG="-std=c++14"
+               OPTIONAL_PUBSUB_LIBS="${GRPC_LIBS} ${PUBSUB_LIBS}"
+           else
+               enable_pubsub="no"
+          @@ -1379,7 +1379,7 @@ AC_MSG_CHECKING([for snappy::RawCompress in -lsnappy])
+               AC_LANG_CPLUSPLUS
+               save_LIBS="${LIBS}"
+               LIBS="-lsnappy"
+          -    save_CXXFLAGS="${CXXFLAGS}"
+          -    CXXFLAGS="${CXXFLAGS} -std=c++11"
+          +    save_CXXFLAGS="${CXXFLAGS}"
+          +    CXXFLAGS="${CXXFLAGS} -std=c++14"
+           
+               AC_TRY_LINK(
+                   [
+          @@ -1425,7 +1425,7 @@ if test "${enable_exporting_prometheus_remote_write}" != "no" -a "${have_libprot
+               enable_exporting_prometheus_remote_write="yes"
+               AC_DEFINE([ENABLE_PROMETHEUS_REMOTE_WRITE], [1], [Prometheus remote write API usability])
+               OPTIONAL_PROMETHEUS_REMOTE_WRITE_CFLAGS="${SNAPPY_CFLAGS} -I \$(abs_top_srcdir)/exporting/prometheus/remote_write"
+          -    CXX11FLAG="-std=c++11"
+          +    CXX11FLAG="-std=c++14"
+               OPTIONAL_PROMETHEUS_REMOTE_WRITE_LIBS="${SNAPPY_LIBS}"
+               OPTIONAL_PROTOBUF_CFLAGS="${PROTOBUF_CFLAGS}"
+               OPTIONAL_PROTOBUF_LIBS="${PROTOBUF_LIBS}"
+          EOF
+          ls -l "$patch_dir"
 
       - name: Generate config
         run: |
