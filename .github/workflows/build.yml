@@ -60,6 +60,19 @@ jobs:
       - name: Inject netdata C++14 patch
         run: |
           patch_dir="feeds/packages/admin/netdata/patches"
+          netdata_makefile="feeds/packages/admin/netdata/Makefile"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("feeds/packages/admin/netdata/Makefile")
+          text = path.read_text()
+          needle = "\t--with-math \\\n"
+          replacement = "\t--with-math \\\n\t--disable-cloud \\\n"
+          if "--disable-cloud" not in text:
+              text = text.replace(needle, replacement, 1)
+              path.write_text(text)
+          print(path)
+          PY
           mkdir -p "$patch_dir"
           rm -f "$patch_dir/005-netdata-use-cxx14-for-protobuf.patch"
           cat >"$patch_dir/005-netdata-use-cxx14-for-protobuf.patch" <<'EOF'
