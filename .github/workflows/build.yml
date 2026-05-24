@@ -73,6 +73,15 @@ jobs:
               path.write_text(text)
           print(path)
           PY
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("feeds/timecontrol/luci-app-timecontrol/root/usr/share/luci/menu.d/luci-app-timecontrol.json")
+          text = path.read_text()
+          text = text.replace("admin/control/timecontrol", "admin/services/timecontrol")
+          path.write_text(text)
+          print(path)
+          PY
           mkdir -p "$patch_dir"
           rm -f "$patch_dir/005-netdata-use-cxx14-for-protobuf.patch"
           cat >"$patch_dir/005-netdata-use-cxx14-for-protobuf.patch" <<'EOF'
