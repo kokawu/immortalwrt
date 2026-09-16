@@ -1,0 +1,11 @@
+#!/usr/bin/lua
+-- CLI intentionally has no flash operation; daily checks can never upgrade.
+local json = require 'luci.jsonc'
+local ok, result = pcall(function()
+    local service = require 'kokawu.upgrade'
+    if arg[1] == 'check' then return service.start('check') end
+    if arg[1] == 'status' then return service.status() end
+    error('用法: kokawu-upgrade check|status', 0)
+end)
+print(json.stringify(ok and result or {accepted = false, message = tostring(result)}))
+os.exit(ok and 0 or 1)
