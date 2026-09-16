@@ -1,0 +1,9 @@
+#!/bin/sh
+# Retained crontabs are supported; install exactly one metadata-only daily check.
+mkdir -p /etc/crontabs
+touch /etc/crontabs/root
+sed -i '\|/usr/sbin/kokawu-upgrade check|d' /etc/crontabs/root
+echo '23 9 * * * /usr/sbin/kokawu-upgrade check >/dev/null 2>&1' >> /etc/crontabs/root
+/etc/init.d/cron enable
+/etc/init.d/cron restart
+exit 0
