@@ -1,0 +1,19 @@
+#!/usr/bin/lua
+local json = require 'luci.jsonc'
+if arg[1] == 'list' then
+    print('{"status":{},"check":{},"upgrade":{"version":"","keep":true}}')
+elseif arg[1] == 'call' then
+    local ok, result = pcall(function()
+        local service = require 'kokawu.upgrade'
+        if arg[2] == 'status' then return service.status() end
+        if arg[2] == 'check' then return service.start('check') end
+        if arg[2] == 'upgrade' then
+            local raw = io.read(4097) or ''
+            if #raw > 4096 then error('请求过长', 0) end
+            return service.start('upgrade', json.parse(raw))
+        end
+        error('未知操作', 0)
+    end)
+    if not ok then result = {accepted = false, state = 'error', available = false, message = tostring(result)} end
+    print(json.stringify(result))
+end
