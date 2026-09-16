@@ -1,0 +1,7 @@
+{
+  "luci-app-kokawu-upgrade": {
+    "description": "Check and explicitly confirm Kokawu firmware upgrades",
+    "read": {"ubus": {"kokawu.upgrade": ["status"]}},
+    "write": {"ubus": {"kokawu.upgrade": ["check", "upgrade"]}}
+  }
+}
