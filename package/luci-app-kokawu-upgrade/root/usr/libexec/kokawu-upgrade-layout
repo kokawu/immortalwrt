@@ -1,0 +1,49 @@
+#!/bin/sh
+# Read-only gate. Never write to a disk. sysupgrade -T alone allows layout changes.
+set -e
+. /lib/functions.sh
+. /lib/functions/system.sh
+. /lib/upgrade/common.sh
+export INTERACTIVE=0 VERBOSE=1
+image=/tmp/kokawu-upgrade/firmware.img.gz
+header=/tmp/kokawu-upgrade/header.bin
+bootheader=/tmp/kokawu-upgrade/boot-header.bin
+trap 'rm -f "$header" "$bootheader"' EXIT HUP INT TERM
+[ "$#" -eq 0 ]
+[ -f "$image" ]
+export_bootdevice
+export_partdevice diskdev 0
+case "$diskdev" in ''|*[!a-zA-Z0-9_-]*) exit 1;; esac
+[ -b "/dev/$diskdev" ]
+# Ensure the writable squashfs overlay belongs to this same boot disk, not extroot.
+export_partdevice rootdev 2
+case "$rootdev" in ''|*[!a-zA-Z0-9_-]*) exit 1;; esac
+overlay=$(awk '$2 == "/overlay" {print $1}' /proc/mounts)
+case "$overlay" in /dev/loop[0-9]*) ;; *) exit 1;; esac
+loopdev=${overlay#/dev/}
+case "$loopdev" in *[!a-zA-Z0-9]*) exit 1;; esac
+backing=$(cat "/sys/class/block/$loopdev/loop/backing_file")
+[ "$(readlink -f "$backing")" = "$(readlink -f "/dev/$rootdev")" ]
+[ "$(cat "/sys/class/block/$diskdev/queue/logical_block_size")" -eq 512 ]
+get_image_dd "$image" of="$header" bs=512 count=63
+dd if="/dev/$diskdev" of="$bootheader" bs=512 count=63
+boot=bios
+[ ! -d /sys/firmware/efi ] || boot=efi
+count=0
+for partition in /sys/class/block/"$diskdev"/*/partition; do
+    [ -f "$partition" ] || continue
+    count=$((count + 1))
+done
+# Parse all 128 GPT entries: common.sh's get_partitions only reads the first 15,
+# and would miss the standard OpenWrt BIOS-boot partition at entry 128.
+/usr/bin/lua - "$boot" "$count" <<'LUA'
+local layout = require 'kokawu.upgrade_layout'
+local function read(path)
+    local f = assert(io.open(path, 'rb'))
+    local data = f:read(32256)
+    f:close()
+    return data
+end
+assert(layout.compare(read('/tmp/kokawu-upgrade/boot-header.bin'),
+    read('/tmp/kokawu-upgrade/header.bin'), arg[1], tonumber(arg[2])))
+LUA
