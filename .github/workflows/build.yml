@@ -150,6 +150,14 @@ jobs:
         run: |
           cp seed.config .config
           make defconfig
+          # Fail rather than silently producing an APK/opkg mixed image.
+          grep -qx 'CONFIG_USE_APK=y' .config
+          grep -qx 'CONFIG_PACKAGE_apk-openssl=y' .config
+          grep -qx 'CONFIG_PACKAGE_luci-app-package-manager=y' .config
+          if grep -Eq '^CONFIG_PACKAGE_(opkg|luci-app-opkg|luci-i18n-opkg-[^=]+)=(y|m)$' .config; then
+            echo "::error::opkg was re-enabled by a dependency; fix that dependency before building."
+            exit 1
+          fi
           ./scripts/diffconfig.sh > build.config
 
       - name: Download sources
