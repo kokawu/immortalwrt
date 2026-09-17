@@ -175,6 +175,8 @@ jobs:
             exit 1
           fi
           grep -qx 'CONFIG_PACKAGE_luci-app-kokawu-upgrade=y' .config
+          # Required by the LuCI template runtime; missing it breaks page rendering.
+          grep -qx 'CONFIG_PACKAGE_ucode-mod-math=y' .config
           ./scripts/diffconfig.sh > build.config
 
       - name: Embed immutable online-upgrade identity
