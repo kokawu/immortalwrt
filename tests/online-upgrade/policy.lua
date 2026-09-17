@@ -38,6 +38,19 @@ test('reject missing keep', function() policy.request({version=newer.version}) e
 test('reject shell injection', function() policy.request({version="x';reboot",keep=true}) end,false)
 test('explicit keep false allowed', function() policy.request({version=newer.version,keep=false}) end,true)
 
+local dated = copy(newer)
+dated.version = '2026.09.17-01'
+for _, image in ipairs(dated.images) do
+    image.url = 'https://github.com/kokawu/immortalwrt/releases/download/v' .. dated.version .. '/' .. image.name
+end
+test('old firmware to date release', function() policy.select(current,dated,'efi',true) end,true)
+test('date request', function() policy.request({version=dated.version,keep=true}) end,true)
+test('date downgrade blocked', function() policy.select(dated,newer,'efi',true) end,false)
+test('date invalid month', function() local n=copy(dated); n.version='2026.13.17-01'; policy.metadata(n) end,false)
+test('date invalid day', function() local n=copy(dated); n.version='2026.02.30-01'; policy.metadata(n) end,false)
+test('date zero sequence', function() local n=copy(dated); n.version='2026.09.17-00'; policy.metadata(n) end,false)
+test('date wrong URL', function() local n=copy(dated); n.images[2].url=newer.images[2].url; policy.select(current,n,'efi',true) end,false)
+
 local function header(boot, altered)
     local bytes = {}; for i=1,32256 do bytes[i]=0 end
     local function text(offset, s) for i=1,#s do bytes[offset+i]=s:byte(i) end end

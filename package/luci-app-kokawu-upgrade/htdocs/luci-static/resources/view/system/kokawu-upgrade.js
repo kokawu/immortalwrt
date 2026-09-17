@@ -22,8 +22,8 @@ return view.extend({
         setText(this.typeNode, [c.target || '未知', s.boot || '未知启动方式', c.filesystem || '未知', c.layout || ''].join(' / '));
         setText(this.timeNode, s.checked_at ? new Date(s.checked_at * 1000).toLocaleString() : '尚未成功检查');
         setText(this.messageNode, s.message || '');
-        dom.content(this.notesNode, n.version && /^online-\d+-\d+$/.test(n.version) ?
-            E('a', { href: 'https://github.com/kokawu/immortalwrt/releases/tag/' + n.version, target: '_blank', rel: 'noopener noreferrer' }, '查看版本说明和源码提交') : '—');
+        dom.content(this.notesNode, n.version && /^(online-\d+-\d+|\d{4}\.\d{2}\.\d{2}-\d{2,})$/.test(n.version) ?
+            E('a', { href: 'https://github.com/kokawu/immortalwrt/releases/tag/' + (n.version.indexOf('online-') === 0 ? n.version : 'v' + n.version), target: '_blank', rel: 'noopener noreferrer' }, '查看版本说明和源码提交') : '—');
         var busy = this.pending || active.indexOf(s.state) >= 0 || !L.hasViewPermission();
         this.checkButton.disabled = !!busy;
         this.upgradeButton.disabled = !!busy || !s.available;
