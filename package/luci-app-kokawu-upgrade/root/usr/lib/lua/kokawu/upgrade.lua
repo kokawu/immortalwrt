@@ -28,10 +28,10 @@ local function save(path, value)
     need(os.rename(temp, path), '无法保存更新状态')
 end
 local function init()
-    nixio.umask(63)
-    fs.mkdir(work, 448)
+    nixio.umask('077')
+    fs.mkdir(work, '700')
     need(fs.stat(work, 'type') == 'dir' and not fs.readlink(work), '更新缓存目录异常')
-    fs.chmod(work, 448)
+    need(fs.chmod(work, '700'), '无法设置更新缓存目录权限')
 end
 local function current()
     -- Never use a preserved /etc copy: squashfs /rom is the running image.
@@ -71,7 +71,7 @@ local function locked()
 end
 local function acquire()
     locked()
-    need(fs.mkdir(lock, 448), '已有更新任务正在运行，请勿重复操作')
+    need(fs.mkdir(lock, '700'), '已有更新任务正在运行，请勿重复操作')
     need(fs.writefile(lock .. '/pid', tostring(nixio.getpid())), '无法创建任务锁')
 end
 local function download(url, path, size, seconds)
