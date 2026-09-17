@@ -5,7 +5,8 @@ repo=kokawu/immortalwrt
 [[ ${GITHUB_REPOSITORY:?} == "$repo" ]]
 version=$(python3 -c 'import json; print(json.load(open("artifacts/manifest.json"))["version"])')
 commit=$(python3 -c 'import json; print(json.load(open("artifacts/manifest.json"))["commit"])')
-[[ $version =~ ^online-[0-9]+-[0-9]+$ && $commit =~ ^[0-9a-f]{40}$ ]]
+[[ $version =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]{2}-[0-9]{2,}$ && $commit =~ ^[0-9a-f]{40}$ ]]
+tag="v$version"
 notes="自动构建的 x86-64 定制固件（APK-only）。源码：$commit
 
 在线升级只支持 squashfs combined BIOS/EFI 原始镜像，QCOW2 仅用于虚拟磁盘部署。
@@ -13,9 +14,9 @@ notes="自动构建的 x86-64 定制固件（APK-only）。源码：$commit
 升级会中断网络，请先备份配置。保留配置不等于保留手动安装的软件。
 构建成功不代表已完成实机回归测试，请自行确认此版本适用。"
 # Publish immutable per-run assets first. A failed upload leaves a draft, not a channel update.
-gh release create "$version" --repo "$repo" --target "$commit" --draft --title "$version" --notes "$notes"
-gh release upload "$version" artifacts/* --repo "$repo"
-gh release edit "$version" --repo "$repo" --draft=false --latest=false
+gh release create "$tag" --verify-tag --repo "$repo" --target "$commit" --draft --title "$version" --notes "$notes"
+gh release upload "$tag" artifacts/* --repo "$repo"
+gh release edit "$tag" --repo "$repo" --draft=false --latest=false
 
 # Query the channel via the authenticated API, avoiding stale CDN content when
 # deciding whether an older long-running build may replace a newer one.
