@@ -11,7 +11,7 @@ local lock='/tmp/kokawu-upgrade.lock'
 local function encode(t) serial=serial+1; local key='JSON:'..serial; objects[key]=copy(t); return key end
 local json={stringify=function(t) return encode(t) end,parse=function(s) return copy(objects[s]) end}
 local fs={}
-function fs.mkdir(path) if dirs[path] then return nil end; dirs[path]={mtime=100}; return true end
+function fs.mkdir(path, mode) assert(mode == '700', 'mkdir requires octal mode string'); if dirs[path] then return nil end; dirs[path]={mtime=100}; return true end
 function fs.stat(path,key)
     local v
     if dirs[path] then v={type='dir',mtime=dirs[path].mtime,size=0}
@@ -22,10 +22,10 @@ function fs.readfile(path) return files[path] end
 function fs.writefile(path,s) files[path]=s; return #s end
 function fs.unlink(path) files[path]=nil; return true end
 function fs.rmdir(path) dirs[path]=nil; return true end
-function fs.chmod() return true end
+function fs.chmod(path, mode) assert(mode == '700', 'chmod requires octal mode string'); return true end
 function fs.readlink() return nil end
 local nixio={stdin=0,stdout=1,stderr=2}
-function nixio.umask() return 0 end
+function nixio.umask(mode) assert(mode == '077', 'umask requires octal mode string'); return 0 end
 function nixio.getpid() return 20 end
 function nixio.kill() return options.locked or false end
 function nixio.fork() if options.fork_fail then return nil end; return 0 end
