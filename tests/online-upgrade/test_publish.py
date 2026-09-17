@@ -13,7 +13,7 @@ args = sys.argv[1:]
 with open('calls.jsonl', 'a') as f:
     f.write(json.dumps(args) + '\\n')
 mode = os.environ['MOCK_MODE']
-if args[:3] == ['release', 'upload', 'online-123-1'] and mode == 'upload-failure':
+if args[:3] == ['release', 'upload', 'v2026.09.17-01'] and mode == 'upload-failure':
     sys.exit(1)
 if args[0] == 'api':
     if any('/releases/assets/' in a for a in args):
@@ -34,7 +34,7 @@ class PublishTests(unittest.TestCase):
             (path / 'artifacts').mkdir()
             (path / 'artifacts/manifest.json').write_text(json.dumps(dict(
                 schema=1, repository='kokawu/immortalwrt', channel='stable',
-                version='online-123-1', build_id=12301, commit='a' * 40)))
+                version='2026.09.17-01', build_id=12301, commit='a' * 40)))
             env = dict(os.environ, PATH=str(path) + os.pathsep + os.environ['PATH'],
                        MOCK_MODE=mode, GITHUB_REPOSITORY='kokawu/immortalwrt')
             result = subprocess.run(['bash', str(ROOT / 'scripts/kokawu-publish-release.sh')],
@@ -45,9 +45,9 @@ class PublishTests(unittest.TestCase):
     def test_bootstrap_orders_upload_before_channel(self):
         result, calls = self.run_publish('bootstrap')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(calls[0][:3], ['release', 'create', 'online-123-1'])
+        self.assertEqual(calls[0][:3], ['release', 'create', 'v2026.09.17-01'])
         self.assertIn('--draft', calls[0])
-        self.assertEqual(calls[1][:3], ['release', 'upload', 'online-123-1'])
+        self.assertEqual(calls[1][:3], ['release', 'upload', 'v2026.09.17-01'])
         self.assertIn('--draft=false', calls[2])
         self.assertEqual(calls[-1][:3], ['release', 'create', 'online-latest'])
 
