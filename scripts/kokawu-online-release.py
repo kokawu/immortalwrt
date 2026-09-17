@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Create build identity before compilation and a fail-closed update manifest after it."""
 import argparse
+from datetime import datetime
+from zoneinfo import ZoneInfo
+import subprocess
 import gzip
 import hashlib
 import json
@@ -17,7 +20,38 @@ def config_values(path):
                 if line.startswith("CONFIG_") and "=" in line)
 
 
-def identity(config, run_id, attempt, commit):
+def date_version(value):
+    if not re.fullmatch(r"[0-9]{4}\.[0-9]{2}\.[0-9]{2}-[0-9]{2,}", value):
+        raise ValueError("Expected YYYY.MM.DD-NN version")
+    day, sequence = value.rsplit("-", 1)
+    datetime.strptime(day, "%Y.%m.%d")
+    if int(sequence) < 1:
+        raise ValueError("Version sequence must be positive")
+    return value
+
+
+def reserve_version(commit):
+    """Reserve an immutable tag atomically; failed builds intentionally leave gaps."""
+    day = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y.%m.%d")
+    prefix = f"repos/{REPOSITORY}/git/matching-refs/tags/v{day}-"
+    for _ in range(10):
+        refs = json.loads(subprocess.check_output(["gh", "api", prefix], text=True))
+        numbers = [int(m.group(1)) for ref in refs
+                   if (m := re.fullmatch(r"refs/tags/v" + re.escape(day) + r"-([0-9]+)", ref["ref"]))]
+        version = f"{day}-{max(numbers, default=0) + 1:02d}"
+        result = subprocess.run(["gh", "api", "--method", "POST",
+                                 f"repos/{REPOSITORY}/git/refs", "-f", f"ref=refs/tags/v{version}",
+                                 "-f", f"sha={commit}"], text=True, capture_output=True)
+        if result.returncode == 0:
+            return version
+        exists = subprocess.run(["gh", "api", f"repos/{REPOSITORY}/git/ref/tags/v{version}"],
+                                text=True, capture_output=True)
+        if exists.returncode != 0:
+            raise RuntimeError("Version reservation failed: " + result.stderr)
+    raise RuntimeError("Too many concurrent version reservations")
+
+
+def identity(config, run_id, attempt, commit, version):
     required = {
         "CONFIG_TARGET_x86_64": "y",
         "CONFIG_TARGET_x86_64_DEVICE_generic": "y",
@@ -44,7 +78,7 @@ def identity(config, run_id, attempt, commit):
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise ValueError("Expected full source commit SHA")
     return dict(schema=1, repository=REPOSITORY, channel="stable",
-                version=f"online-{run_id}-{attempt}", build_id=run_id * 100 + attempt,
+                version=date_version(version), build_id=run_id * 100 + attempt,
                 target="x86/64", profile="generic", filesystem="squashfs",
                 layout=LAYOUT, commit=commit)
 
@@ -74,7 +108,7 @@ def manifest(metadata, directory):
                 digest.update(block)
         result["images"].append(dict(boot=boot, name=image.name, size=size,
                                      sha256=digest.hexdigest(),
-                                     url=f"https://github.com/{REPOSITORY}/releases/download/{metadata['version']}/{image.name}"))
+                                     url=f"https://github.com/{REPOSITORY}/releases/download/v{metadata['version']}/{image.name}"))
     return result
 
 
@@ -95,7 +129,8 @@ def main():
         if os.environ.get("GITHUB_REPOSITORY") != REPOSITORY:
             raise ValueError("This update channel is pinned to kokawu/immortalwrt")
         data = identity(config_values(args.config), int(os.environ["GITHUB_RUN_ID"]),
-                        int(os.environ["GITHUB_RUN_ATTEMPT"]), os.environ["GITHUB_SHA"])
+                        int(os.environ["GITHUB_RUN_ATTEMPT"]), os.environ["GITHUB_SHA"],
+                        reserve_version(os.environ["GITHUB_SHA"]))
         write_json(args.metadata, data)
     else:
         data = json.loads(Path(args.metadata).read_text())
