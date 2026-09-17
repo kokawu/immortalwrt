@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("release", ROOT / "scripts/kokawu-online-release.py")
@@ -17,39 +19,66 @@ spec.loader.exec_module(release)
 class ReleaseTests(unittest.TestCase):
     def setUp(self):
         self.config = release.config_values(ROOT / "seed.config")
-        self.meta = release.identity(self.config, 123, 1, "a" * 40)
+        self.meta = release.identity(self.config, 123, 1, "a" * 40, "2026.09.17-01")
 
     def test_identity(self):
         self.assertEqual(self.meta["build_id"], 12301)
-        self.assertEqual(self.meta["version"], "online-123-1")
+        self.assertEqual(self.meta["version"], "2026.09.17-01")
 
     def test_wrong_layout_rejected(self):
         self.config["CONFIG_TARGET_ROOTFS_PARTSIZE"] = "2048"
         with self.assertRaises(ValueError):
-            release.identity(self.config, 123, 1, "a" * 40)
+            release.identity(self.config, 123, 1, "a" * 40, "2026.09.17-01")
 
     def test_opkg_rejected(self):
         self.config["CONFIG_PACKAGE_opkg"] = "y"
         with self.assertRaises(ValueError):
-            release.identity(self.config, 123, 1, "a" * 40)
+            release.identity(self.config, 123, 1, "a" * 40, "2026.09.17-01")
 
     def test_plugin_required(self):
         self.config.pop("CONFIG_PACKAGE_luci-app-kokawu-upgrade")
         with self.assertRaises(ValueError):
-            release.identity(self.config, 123, 1, "a" * 40)
+            release.identity(self.config, 123, 1, "a" * 40, "2026.09.17-01")
 
     def test_ext4_rejected(self):
         self.config["CONFIG_TARGET_ROOTFS_EXT4FS"] = "y"
         with self.assertRaises(ValueError):
-            release.identity(self.config, 123, 1, "a" * 40)
+            release.identity(self.config, 123, 1, "a" * 40, "2026.09.17-01")
 
     def test_bad_commit(self):
         with self.assertRaises(ValueError):
-            release.identity(self.config, 123, 1, "not-a-commit")
+            release.identity(self.config, 123, 1, "not-a-commit", "2026.09.17-01")
 
     def test_no_sequence_collisions(self):
         with self.assertRaises(ValueError):
-            release.identity(self.config, 123, 100, "a" * 40)
+            release.identity(self.config, 123, 100, "a" * 40, "2026.09.17-01")
+
+    def test_bad_date_versions(self):
+        for version in ('2026.02.30-01', '2026.13.01-01', '2026.09.17-00', '../bad'):
+            with self.subTest(version=version), self.assertRaises(ValueError):
+                release.date_version(version)
+
+    def test_reserved_sequence_and_commit(self):
+        day = release.datetime.now(release.ZoneInfo('Asia/Shanghai')).strftime('%Y.%m.%d')
+        refs = json.dumps([{'ref': f'refs/tags/v{day}-01'}, {'ref': f'refs/tags/v{day}-03'}])
+        with patch.object(release.subprocess, 'check_output', return_value=refs), \
+             patch.object(release.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as run:
+            self.assertEqual(release.reserve_version('a' * 40), day + '-04')
+            self.assertIn('sha=' + 'a' * 40, run.call_args.args[0])
+
+    def test_reservation_error_fails_closed(self):
+        failed = SimpleNamespace(returncode=1, stderr='network failure')
+        with patch.object(release.subprocess, 'check_output', return_value='[]'), \
+             patch.object(release.subprocess, 'run', return_value=failed), self.assertRaises(RuntimeError):
+            release.reserve_version('a' * 40)
+
+    def test_reservation_collision_retries(self):
+        day = release.datetime.now(release.ZoneInfo('Asia/Shanghai')).strftime('%Y.%m.%d')
+        refs = json.dumps([{'ref': f'refs/tags/v{day}-01'}])
+        with patch.object(release.subprocess, 'check_output', side_effect=['[]', refs]), \
+             patch.object(release.subprocess, 'run', side_effect=[
+                 SimpleNamespace(returncode=1), SimpleNamespace(returncode=0), SimpleNamespace(returncode=0)]):
+            self.assertEqual(release.reserve_version('a' * 40), day + '-02')
 
     @staticmethod
     def image(folder, boot, wrong_header=False):
@@ -77,7 +106,7 @@ class ReleaseTests(unittest.TestCase):
                 data = (Path(folder) / image["name"]).read_bytes()
                 self.assertEqual(image["size"], len(data))
                 self.assertEqual(image["sha256"], hashlib.sha256(data).hexdigest())
-                self.assertIn("/releases/download/online-123-1/", image["url"])
+                self.assertIn("/releases/download/v2026.09.17-01/", image["url"])
                 self.assertNotIn("qcow2", image["name"])
 
     def test_missing_image_rejected(self):
