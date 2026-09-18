@@ -25,3 +25,25 @@ class SmokeTests(unittest.TestCase):
             source.write_bytes(gzip.compress(b'test image')[:-6])
             with self.assertRaises(ValueError):
                 smoke.unpack(source, target)
+
+    def test_long_script_uses_disk_not_serial(self):
+        import subprocess
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as temp:
+            folder = Path(temp)
+            script = '# ' + 'x' * 8192 + chr(10) + 'echo "quoted script"' + chr(10)
+            command = ['qemu-system-x86_64']
+            launcher = smoke.attach_guest_script(command, folder, script)
+            disk = folder / 'test-script.img'
+            data = disk.read_bytes()
+            self.assertEqual(len(data) % 512, 0)
+            self.assertEqual(data[:len(script.encode())], script.encode())
+            self.assertEqual(data[len(script.encode()):].strip(bytes(1)), b'')
+            self.assertLess(len(launcher), 200)
+            self.assertEqual(launcher.count(bytes([10])), 1)
+            self.assertNotIn(b'quoted', launcher)
+            self.assertIn('readonly=on', command[-1])
+            local = launcher.decode().replace('/dev/vdc', str(disk)).replace(
+                '/tmp/kokawu-smoke.sh', str(folder / 'guest.sh'))
+            result = subprocess.run(['sh', '-c', local], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, 'quoted script' + chr(10))
