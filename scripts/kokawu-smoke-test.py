@@ -25,6 +25,16 @@ def unpack(source, target):
             raise ValueError('Truncated gzip image')
 
 
+def attach_guest_script(command, folder, script):
+    # Avoid the bounded BusyBox ash interactive serial input buffer.
+    data = script.encode()
+    disk = folder / "test-script.img"
+    disk.write_bytes(data + bytes(-len(data) % 512))
+    command += ["-drive", f"file={disk},format=raw,if=virtio,readonly=on"]
+    return (f"head -c {len(data)} /dev/vdc > /tmp/kokawu-smoke.sh && "
+            "sh /tmp/kokawu-smoke.sh\n").encode()
+
+
 def boot(image, boot_mode, version, folder, digest):
     raw = folder / 'disk.img'
     unpack(image, raw)
@@ -63,6 +73,7 @@ def boot(image, boot_mode, version, folder, digest):
             + "/usr/libexec/kokawu-upgrade-layout && "
             + "sysupgrade -T /tmp/kokawu-upgrade/firmware.img.gz")
     script = "( " + test + " ) && printf '\\nKOKAWU_%s\\n' PASS || printf '\\nKOKAWU_%s\\n' FAIL\n"
+    launcher = attach_guest_script(command, folder, script)
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ)
@@ -89,7 +100,7 @@ def boot(image, boot_mode, version, folder, digest):
                 process.stdin.flush()
                 next_probe = now + 15
             if not sent and b'KOKAWU_READY' in output:
-                process.stdin.write(script.encode())
+                process.stdin.write(launcher)
                 process.stdin.flush()
                 sent = True
         raise RuntimeError(f'{boot_mode}: timed out waiting for guest tests')
