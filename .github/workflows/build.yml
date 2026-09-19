@@ -40,7 +40,7 @@ jobs:
           lua5.1 tests/online-upgrade/policy.lua
           lua5.1 tests/online-upgrade/backend.lua
           node --check package/luci-app-kokawu-upgrade/htdocs/luci-static/resources/view/system/kokawu-upgrade.js
-          shellcheck -S error scripts/kokawu-publish-release.sh package/luci-app-kokawu-upgrade/root/usr/libexec/kokawu-upgrade-layout package/luci-app-kokawu-upgrade/root/etc/uci-defaults/95-kokawu-upgrade
+          shellcheck -S error scripts/kokawu-smoke-http.sh scripts/kokawu-publish-release.sh package/luci-app-kokawu-upgrade/root/usr/libexec/kokawu-upgrade-layout package/luci-app-kokawu-upgrade/root/etc/uci-defaults/95-kokawu-upgrade
 
       - name: Free disk space
         run: |
