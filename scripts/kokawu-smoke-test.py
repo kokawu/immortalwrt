@@ -74,7 +74,7 @@ def boot(image, boot_mode, version, folder, digest):
             + http_test + " && "
             + f"head -c {image.stat().st_size} /dev/vdb > /tmp/kokawu-upgrade/firmware.img.gz && "
             + f"echo '{digest}  /tmp/kokawu-upgrade/firmware.img.gz' | sha256sum -c - && "
-            + "/usr/libexec/kokawu-upgrade-layout && "
+            + "sh -x /usr/libexec/kokawu-upgrade-layout && "
             + "sysupgrade -T /tmp/kokawu-upgrade/firmware.img.gz")
     script = "( " + test + " ) && printf '\\nKOKAWU_%s\\n' PASS || printf '\\nKOKAWU_%s\\n' FAIL\n"
     launcher = attach_guest_script(command, folder, script)
