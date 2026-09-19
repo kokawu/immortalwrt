@@ -61,13 +61,17 @@ def boot(image, boot_mode, version, folder, digest):
     lua = ("local s=require('kokawu.upgrade').status(); "
            f"assert(s.current and s.current.version=={version!r}); assert(s.boot=={boot_mode!r}); "
            "assert(require('nixio.fs').stat('/tmp/kokawu-upgrade').type=='dir')")
+    # Password changes affect only this disposable -snapshot VM.
+    import secrets
+    password = secrets.token_hex(24)
+    http_script = Path(__file__).with_name('kokawu-smoke-http.sh').read_text()
+    http_test = (f"printf '%s\n%s\n' {password} {password} | passwd root && "
+                 f"SMOKE_PASSWORD={password} sh -c " + shlex.quote(http_script))
     test = ("ucode -e 'import * as m from \"math\"; print(m.floor(1.5));' && "
             + 'lua -e ' + shlex.quote(lua) + ' && '
             + "ubus call kokawu.upgrade status > /tmp/rpc-status.json && "
             + "grep -q 'current' /tmp/rpc-status.json && "
-            + "curl -fsSL --max-time 30 http://127.0.0.1/cgi-bin/luci/ > /tmp/luci-smoke.html && "
-            + "grep -qi '<html' /tmp/luci-smoke.html && "
-            + "! grep -Eq 'Unhandled exception|No module named|runtime.uc.*line' /tmp/luci-smoke.html && "
+            + http_test + " && "
             + f"head -c {image.stat().st_size} /dev/vdb > /tmp/kokawu-upgrade/firmware.img.gz && "
             + f"echo '{digest}  /tmp/kokawu-upgrade/firmware.img.gz' | sha256sum -c - && "
             + "/usr/libexec/kokawu-upgrade-layout && "
