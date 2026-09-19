@@ -12,6 +12,8 @@ trap 'rm -f "$header" "$bootheader"' EXIT HUP INT TERM
 [ "$#" -eq 0 ]
 [ -f "$image" ]
 export_bootdevice
+diskdev=
+rootdev=
 export_partdevice diskdev 0
 case "$diskdev" in ''|*[!a-zA-Z0-9_-]*) exit 1;; esac
 [ -b "/dev/$diskdev" ]
@@ -23,9 +25,19 @@ case "$overlay" in /dev/loop[0-9]*) ;; *) exit 1;; esac
 loopdev=${overlay#/dev/}
 case "$loopdev" in *[!a-zA-Z0-9]*) exit 1;; esac
 backing=$(cat "/sys/class/block/$loopdev/loop/backing_file")
-[ "$(readlink -f "$backing")" = "$(readlink -f "/dev/$rootdev")" ]
+# Early boot mounts devtmpfs separately; sysfs may expose /vda2 rather than
+# /dev/vda2. Accept only these exact names for the discovered root partition.
+# Do not use basename: /mnt/extroot/vda2 must never pass this gate.
+case "$backing" in
+    "/$rootdev"|"/dev/$rootdev") ;;
+    *) echo "Unsupported overlay backing: $backing (expected root partition $rootdev)" >&2; exit 1;;
+esac
+[ -b "/dev/$rootdev" ]
 [ "$(cat "/sys/class/block/$diskdev/queue/logical_block_size")" -eq 512 ]
-get_image_dd "$image" of="$header" bs=512 count=63
+# get_image_dd filters dd diagnostics with grep, which may return 1 on
+# success under set -e. Read an exact byte count instead (dd on a pipe may
+# also yield short blocks). The Lua parser below rejects incomplete headers.
+get_image "$image" | head -c 32256 > "$header"
 dd if="/dev/$diskdev" of="$bootheader" bs=512 count=63
 boot=bios
 [ ! -d /sys/firmware/efi ] || boot=efi
