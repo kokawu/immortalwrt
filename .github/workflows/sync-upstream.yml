@@ -66,18 +66,11 @@ jobs:
           echo "Rebased fork master: $(git rev-parse --short master)"
           git push --force-with-lease origin master
 
-          tag="build-auto-$(TZ=Asia/Shanghai date +%Y%m%d-%H%M)-${GITHUB_RUN_NUMBER}"
-          git tag -a "$tag" -m "Automated build after upstream sync $tag"
-          git push origin "$tag"
-
           echo "changed=true" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      - name: Trigger firmware build
-        if: steps.sync.outputs.changed == 'true' && (github.event_name == 'schedule' || inputs.build_after_sync)
+      # Recover partial failures even when upstream is already synchronized.
+      - name: Ensure firmware build
+        if: github.event_name == 'schedule' || inputs.build_after_sync
         env:
           GH_TOKEN: ${{ github.token }}
-          BUILD_TAG: ${{ steps.sync.outputs.tag }}
-        run: |
-          gh workflow run build.yml --repo "$GITHUB_REPOSITORY" --ref "$BUILD_TAG"
-          echo "Triggered firmware build for $BUILD_TAG"
+        run: bash scripts/kokawu-ensure-build.sh
