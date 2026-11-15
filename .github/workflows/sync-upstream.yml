@@ -9,8 +9,8 @@ on:
         type: boolean
         default: true
   schedule:
-    # Daily at 03:30 Asia/Shanghai.
-    - cron: "30 19 * * *"
+    # Daily at 03:37 Asia/Shanghai (19:37 UTC on the previous day).
+    - cron: "37 19 * * *"
 
 permissions:
   actions: write
