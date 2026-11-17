@@ -8,10 +8,6 @@ on:
         type: boolean
         default: true
         required: true
-  push:
-    tags:
-      - "build-*"
-      - "kokawu-*"
 
 permissions:
   contents: write

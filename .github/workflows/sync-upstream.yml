@@ -8,9 +8,6 @@ on:
         required: true
         type: boolean
         default: true
-  schedule:
-    # Daily at 03:37 Asia/Shanghai (19:37 UTC on the previous day).
-    - cron: "37 19 * * *"
 
 permissions:
   actions: write
@@ -70,7 +67,7 @@ jobs:
 
       # Recover partial failures even when upstream is already synchronized.
       - name: Ensure firmware build
-        if: github.event_name == 'schedule' || inputs.build_after_sync
+        if: inputs.build_after_sync
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/kokawu-ensure-build.sh
